@@ -1,0 +1,21 @@
+<mujoco model="juggle scene">
+  <!-- Arm + floor + lights from Menagerie. Keep this file in the same folder so mesh paths resolve. -->
+  <include file="scene.xml"/>
+
+  <!-- Air (density in kg/m^3). Turns on MuJoCo's fluid model, which adds air drag. -->
+  <option density="1.2" viscosity="0.00002"/>
+
+  <worldbody>
+    <!-- Starts above the arm's wrist in the "home" pose.
+         gravcomp cancels that fraction of gravity on this body, acting as buoyancy
+         (the fluid model adds drag but no buoyancy for this shape).
+         Raise it toward 1 for a floatier balloon, lower it for a heavier one. -->
+    <body name="balloon" pos="-0.134 0.49 1.3" gravcomp="0.9">
+      <freejoint/>
+      <!-- 12 cm radius, 12 g (rubber + air inside). Collisions use the full mass.
+           fluidshape="ellipsoid" uses the more realistic fluid model for this shape. -->
+      <geom name="balloon" type="sphere" size="0.08" mass="0.012" rgba="0.9 0.15 0.2 0.85"
+            fluidshape="ellipsoid"/>
+    </body>
+  </worldbody>
+</mujoco>

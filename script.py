@@ -3,7 +3,7 @@ import numpy as np
 import mujoco
 import mujoco.viewer
 
-model = mujoco.MjModel.from_xml_path("models/universal_robots_ur5e/scene.xml")
+model = mujoco.MjModel.from_xml_path("models/universal_robots_ur5e/juggle_scene.xml")
 data = mujoco.MjData(model)
 
 mujoco.mj_resetDataKeyframe(model, data, model.key("home").id)
