@@ -36,10 +36,9 @@ Rewards:
 
 Radial Distance - punish
 Horizontal Velocity - punish
+Jerk/Instability - punish
 Time - incentivize
 # of Hits (own definition of hits) - incentivize
-
-
 '''
 
 '''
@@ -50,14 +49,18 @@ Camera?
 '''
 
 
-with mujoco.viewer.launch_passive(model, data) as viewer:
-    randomize_start(model, data)
-    while viewer.is_running():
-        t0 = time.time()
-        mujoco.mj_step(model, data)
-        if balloon_hit_floor(data):
-            randomize_start(model, data)
-        viewer.sync()
-        # run at roughly real time
-        # time.sleep(max(0, model.opt.timestep - (time.time() - t0)))
-        time.sleep(max(0, model.opt.timestep - (time.time() - t0)))
+if __name__ == "__main__":
+
+
+    
+    with mujoco.viewer.launch_passive(model, data) as viewer:
+        randomize_start(model, data)
+        while viewer.is_running():
+            t0 = time.time()
+            mujoco.mj_step(model, data)
+            if balloon_hit_floor(data):
+                randomize_start(model, data)
+            viewer.sync()
+            # run at roughly real time
+            # time.sleep(max(0, model.opt.timestep - (time.time() - t0)))
+            time.sleep(max(0, model.opt.timestep - (time.time() - t0)))
