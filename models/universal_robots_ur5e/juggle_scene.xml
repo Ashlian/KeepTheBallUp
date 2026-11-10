@@ -13,9 +13,14 @@
     <body name="balloon" pos="-0.134 0.49 1.5" gravcomp="0.9">
       <freejoint name="balloon 1"/>
       <!-- 12 cm radius, 12 g (rubber + air inside). Collisions use the full mass.
-           fluidshape="ellipsoid" uses the more realistic fluid model for this shape. -->
+           fluidshape="ellipsoid" uses the more realistic fluid model for this shape.
+           Bounciness: solref="timeconst dampratio". A lower dampratio gives a bouncier ball
+           (0.1 keeps ~70-85% of its speed per bounce, 0.2 ~50-60%, MuJoCo's default 1 ~10%).
+           Keep timeconst at 0.02: lower values made the bounce unstable at this timestep.
+           solmix="1000" makes the balloon's solref win over the arm's/floor's defaults;
+           otherwise MuJoCo averages the two and the bounce is much weaker. -->
       <geom name="balloon" type="sphere" size="0.08" mass="0.012" rgba="0.9 0.15 0.2 0.85"
-            fluidshape="ellipsoid"/>
+            fluidshape="ellipsoid" solref="0.02 0.1" solmix="1000"/>
     </body>
   </worldbody>
 </mujoco>

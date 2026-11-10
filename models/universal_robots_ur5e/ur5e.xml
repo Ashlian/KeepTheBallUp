@@ -112,6 +112,16 @@
                   <geom material="linkgray" mesh="wrist3" class="visual"/>
                   <geom class="eef_collision" pos="0 0.08 0" quat="1 1 0 0" size="0.04 0.02"/>
                   <site name="attachment_site" pos="0 0.1 0" quat="-1 1 0 0"/>
+                  <!-- BallJuggle addition: flat paddle bolted to the tool flange.
+                       Its own body (no joint, so it's rigidly attached) because wrist_3_link
+                       sets its mass by hand, which would make MuJoCo ignore the paddle's mass.
+                       Same frame as attachment_site: local z points out of the flange face. -->
+                  <body name="paddle" pos="0 0.1 0" quat="-1 1 0 0">
+                    <!-- 28 cm across, 1 cm thick, 200 g (light plastic/carbon).
+                         Not using class="collision": that hides it in the viewer. -->
+                    <geom name="paddle" type="cylinder" size="0.14 0.005" pos="0 0 0.005"
+                          mass="0.2" rgba="0.2 0.6 0.9 1"/>
+                  </body>
                 </body>
               </body>
             </body>
@@ -130,7 +140,14 @@
     <general class="size1" name="wrist_3" joint="wrist_3_joint"/>
   </actuator>
 
+  <!-- BallJuggle addition: the paddle sits flush against wrist_2's collision capsule;
+       skip that pair so they don't push on each other. -->
+  <contact>
+    <exclude body1="wrist_2_link" body2="paddle"/>
+  </contact>
+
   <keyframe>
-    <key name="home" qpos="-1.5708 -1.5708 1.5708 -1.5708 -1.5708 0" ctrl="-1.5708 -1.5708 1.5708 -1.5708 -1.5708 0"/>
+    <!-- BallJuggle change: wrist_1 is +1.5708 (was -1.5708) so the paddle faces up. -->
+    <key name="home" qpos="-1.5708 -1.5708 1.5708 1.5708 -1.5708 0" ctrl="-1.5708 -1.5708 1.5708 1.5708 -1.5708 0"/>
   </keyframe>
 </mujoco>
