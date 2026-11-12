@@ -22,17 +22,17 @@ ACTION_HIGH = np.array([ np.pi,  1.0,  1.0,   1.0,    1.0,    0.5])
 SPAWN_MIN_RADIUS, SPAWN_MAX_RADIUS = 0.2, 0.55
 SPAWN_MIN_Z, SPAWN_MAX_Z = 1.5, 2.25
 
-#! Make hits only come from paddle
 #! Make hits only count when launching ball above a certain threshold
-#! Limit tilt on the paddle
 #! Punish double bounce gimmick
 
 # ---------- reward dials (TODO: tune) ----------
 W_ALIVE = 0.1          # Time: incentivize staying up
-W_HIT = 1.0            # # of hits (balloon touching the paddle): incentivize
+W_HIT = 1.0            # # of hits (balloon launched off the paddle): incentivize
+MIN_LAUNCH_VZ = 0.6    # m/s upward when the balloon leaves the paddle for it to count as a hit.
+                       # Jitter on a still paddle leaves at < 0.05; passive bounces 0.58, 0.36, 0.24...
 W_ARM_TOUCH = -0.5     # Balloon touching any other part of the arm: punish (once per touch)
-W_RADIAL = -0.1        # Radial distance of balloon from the arm's base: punish
-W_HORIZ_VEL = -0.0     # Horizontal velocity of the balloon: punish
+W_RADIAL = -0.0        # Radial distance of balloon from the arm's base: punish
+W_HORIZ_VEL = -0.1     # Horizontal velocity of the balloon: punish
 W_JERK = -0.0         # Jerk / instability (change in action between steps): punish
 W_DROP = -5.0          # One-time penalty when the balloon hits the floor
 W_TRACK = 0.2          # Paddle under the balloon: incentivize (max W_TRACK per step, when right under it)
@@ -82,15 +82,18 @@ class JuggleEnv(gym.Env):
         action = np.asarray(action, dtype=np.float64)
         self.arm.set_targets_from_action(action, ACTION_LOW, ACTION_HIGH)
 
-        hit = False        # balloon started touching the paddle
+        hit = False        # balloon left the paddle going up faster than MIN_LAUNCH_VZ
         arm_touch = False  # balloon started touching any other part of the arm
         dropped = False
         for _ in range(FRAME_SKIP):
             mujoco.mj_step(self.model, self.data)
             touching_paddle, touching_body, touching_floor = self._balloon_contacts()
-            # Count only when contact starts, so one long touch counts once
-            if touching_paddle and not self.was_touching_paddle:
-                hit = True  # TODO: your own hit definition (e.g. minimum launch speed)
+            # Hit = the moment paddle contact ends, if the balloon is launched upward fast enough.
+            # Checked at release (not first touch) because the balloon is still falling on contact.
+            if self.was_touching_paddle and not touching_paddle:
+                if self.balloon_joint.qvel[2] > MIN_LAUNCH_VZ:
+                    hit = True
+            # Arm touches count when contact starts, so one long touch counts once
             if touching_body and not self.was_touching_body:
                 arm_touch = True
             self.was_touching_paddle = touching_paddle

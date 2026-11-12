@@ -18,7 +18,7 @@ from stable_baselines3.common.utils import configure_logger
 from juggle_env import JuggleEnv
 
 MODEL_FILE = "ppo_juggle"   # saved as ppo_juggle.zip
-TOTAL_TIMESTEPS = 1_000_000
+TOTAL_TIMESTEPS = 2_000_000
 
 # Training graphs only if tensorboard is installed (python3 -m pip install tensorboard)
 TB_LOG = "runs/" if importlib.util.find_spec("tensorboard") else None
