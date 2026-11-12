@@ -29,7 +29,8 @@ SPAWN_MIN_Z, SPAWN_MAX_Z = 1.5, 2.25
 
 # ---------- reward dials (TODO: tune) ----------
 W_ALIVE = 0.1          # Time: incentivize staying up
-W_HIT = 1.0            # # of hits: incentivize
+W_HIT = 1.0            # # of hits (balloon touching the paddle): incentivize
+W_ARM_TOUCH = -0.5     # Balloon touching any other part of the arm: punish (once per touch)
 W_RADIAL = -0.1        # Radial distance of balloon from the arm's base: punish
 W_HORIZ_VEL = -0.0     # Horizontal velocity of the balloon: punish
 W_JERK = -0.0         # Jerk / instability (change in action between steps): punish
@@ -49,6 +50,7 @@ class JuggleEnv(gym.Env):
         self.balloon_joint = self.data.joint("balloon 1")
         self.balloon_geom = self.model.geom("balloon").id
         self.floor_geom = self.model.geom("floor").id
+        self.paddle_geom = self.model.geom("paddle").id
 
         self.render_mode = render_mode
         self.viewer = None
@@ -59,7 +61,8 @@ class JuggleEnv(gym.Env):
 
         self.steps = 0
         self.prev_action = np.zeros(self.arm.n_joints)
-        self.was_touching_arm = False
+        self.was_touching_paddle = False
+        self.was_touching_body = False
 
     # ---------- Gymnasium API ----------
     def reset(self, *, seed=None, options=None):
@@ -71,34 +74,40 @@ class JuggleEnv(gym.Env):
 
         self.steps = 0
         self.prev_action = np.zeros(self.arm.n_joints)
-        self.was_touching_arm = False
+        self.was_touching_paddle = False
+        self.was_touching_body = False
         return self._get_obs(), {}
 
     def step(self, action):
         action = np.asarray(action, dtype=np.float64)
         self.arm.set_targets_from_action(action, ACTION_LOW, ACTION_HIGH)
 
-        hit = False
+        hit = False        # balloon started touching the paddle
+        arm_touch = False  # balloon started touching any other part of the arm
         dropped = False
         for _ in range(FRAME_SKIP):
             mujoco.mj_step(self.model, self.data)
-            touching_arm, touching_floor = self._balloon_contacts()
-            if touching_arm and not self.was_touching_arm:
-                hit = True  # count a hit when contact starts (TODO: your own hit definition)
-            self.was_touching_arm = touching_arm
+            touching_paddle, touching_body, touching_floor = self._balloon_contacts()
+            # Count only when contact starts, so one long touch counts once
+            if touching_paddle and not self.was_touching_paddle:
+                hit = True  # TODO: your own hit definition (e.g. minimum launch speed)
+            if touching_body and not self.was_touching_body:
+                arm_touch = True
+            self.was_touching_paddle = touching_paddle
+            self.was_touching_body = touching_body
             if touching_floor:
                 dropped = True
                 break
 
         self.steps += 1
-        reward, reward_info = self._compute_reward(action, hit, dropped)
+        reward, reward_info = self._compute_reward(action, hit, arm_touch, dropped)
         terminated = dropped
         truncated = self.steps >= MAX_EPISODE_STEPS
         self.prev_action = action
 
         if self.render_mode == "human":
             self.render()
-        info = {"hit": hit, "reward_terms": reward_info}
+        info = {"hit": hit, "arm_touch": arm_touch, "reward_terms": reward_info}
         return self._get_obs(), reward, terminated, truncated, info
 
     def render(self):
@@ -122,17 +131,20 @@ class JuggleEnv(gym.Env):
         self.balloon_joint.qvel[:] = 0.0
 
     def _balloon_contacts(self):
-        """Returns (touching_arm, touching_floor) for the balloon this physics step."""
-        touching_arm = touching_floor = False
+        """Returns (touching_paddle, touching_body, touching_floor) for the balloon this
+        physics step. "body" means any part of the arm other than the paddle."""
+        touching_paddle = touching_body = touching_floor = False
         for c in self.data.contact[:self.data.ncon]:
             if self.balloon_geom not in (c.geom1, c.geom2):
                 continue
             other = c.geom2 if c.geom1 == self.balloon_geom else c.geom1
             if other == self.floor_geom:
                 touching_floor = True
+            elif other == self.paddle_geom:
+                touching_paddle = True
             elif other in self.arm.geom_ids:
-                touching_arm = True
-        return touching_arm, touching_floor
+                touching_body = True
+        return touching_paddle, touching_body, touching_floor
 
     def _balloon_pos(self):
         return self.balloon_joint.qpos[:3].copy()
@@ -154,7 +166,7 @@ class JuggleEnv(gym.Env):
         ]).astype(np.float32)
         # TODO later: LIDAR / camera observations
 
-    def _compute_reward(self, action, hit, dropped):
+    def _compute_reward(self, action, hit, arm_touch, dropped):
         balloon = self._balloon_pos()
         balloon_vel = self._balloon_vel()
         # Horizontal (x, y) distance only: the balloon starts higher than the arm can reach,
@@ -166,6 +178,7 @@ class JuggleEnv(gym.Env):
             "track": W_TRACK * np.exp(-paddle_dist / TRACK_SCALE),
             "alive": W_ALIVE,
             "hit": W_HIT * float(hit),
+            "arm_touch": W_ARM_TOUCH * float(arm_touch),
             "radial": W_RADIAL * np.linalg.norm(balloon[:2]),
             "horiz_vel": W_HORIZ_VEL * np.linalg.norm(balloon_vel[:2]),
             "jerk": W_JERK * float(np.sum((action - self.prev_action) ** 2)),

@@ -35,7 +35,7 @@ def slider_action():
 
 obs, _ = env.reset()
 env.render()  # opens the viewer
-episode_reward, hits = 0.0, 0
+episode_reward, hitss = 0.0, 0
 if MODE == "manual":
     print("Manual mode: open the right-hand panel > Control and drag the joint sliders.")
 

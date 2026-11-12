@@ -12,6 +12,8 @@ import time
 
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
+from stable_baselines3.common.logger import HumanOutputFormat
+from stable_baselines3.common.utils import configure_logger
 
 from juggle_env import JuggleEnv
 
@@ -20,6 +22,34 @@ TOTAL_TIMESTEPS = 1_000_000
 
 # Training graphs only if tensorboard is installed (python3 -m pip install tensorboard)
 TB_LOG = "runs/" if importlib.util.find_spec("tensorboard") else None
+
+# Rows left out of the progress table printed during training.
+# Only hidden from the terminal: tensorboard (if installed) still records them.
+HIDDEN_LOG_KEYS = {
+    "ep_rew_mean", "fps", "entropy_loss", "explained_variance",
+    "clip_fraction", "clip_range", "approx_kl",
+}
+
+
+class FilteredTerminalOutput(HumanOutputFormat):
+    """SB3's printed table, minus the rows in HIDDEN_LOG_KEYS."""
+
+    def write(self, key_values, key_excluded, step=0):
+        # Keys look like "rollout/ep_rew_mean"; match on the part after the slash
+        kept = {k: v for k, v in key_values.items() if k.split("/")[-1] not in HIDDEN_LOG_KEYS}
+        excluded = {k: key_excluded[k] for k in kept if k in key_excluded}
+        super().write(kept, excluded, step)
+
+
+def use_filtered_logger(model, resume):
+    """Same logger SB3 would make on its own, with the terminal output filtered."""
+    logger = configure_logger(verbose=1, tensorboard_log=TB_LOG, tb_log_name="PPO",
+                              reset_num_timesteps=not resume)
+    logger.output_formats = [
+        FilteredTerminalOutput(sys.stdout) if isinstance(f, HumanOutputFormat) else f
+        for f in logger.output_formats
+    ]
+    model.set_logger(logger)
 
 
 def train(resume=False):
@@ -38,6 +68,7 @@ def train(resume=False):
             verbose=1,
             tensorboard_log=TB_LOG,
         )
+    use_filtered_logger(model, resume)
     try:
         model.learn(total_timesteps=TOTAL_TIMESTEPS, reset_num_timesteps=not resume)
     except KeyboardInterrupt:
